@@ -46,7 +46,7 @@ class OAuth2AuthorizationCodeBase(BaseModel):
     auth_time: int = Field(int(time.time()))
     code_challenge: Optional[str] = Field('')
     code_challenge_method: Optional[str] = Field('')
-
+    user_id: int = Field()
 
 
 class OAuth2AuthorizationCode(OAuth2AuthorizationCodeBase):
@@ -74,6 +74,7 @@ class OAuth2TokenBase(BaseModel):
     access_token_revoked_at: int = Field(0)
     refresh_token_revoked_at: int = Field(0)
     expires_in: int = Field(0)
+    user_id: int = Field()
 
     def is_revoked(self) -> int | bool:
         return self.access_token_revoked_at or self.refresh_token_revoked_at

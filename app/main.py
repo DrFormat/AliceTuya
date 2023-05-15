@@ -1,13 +1,14 @@
 import logging
 
 from fastapi import FastAPI
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 from tuya_iot import TUYA_LOGGER
 
 from app.core.config import config
 from app.core.static_files import SPAStaticFiles
 from app.tuya_adapter import TuyaAdapder
-from app.views.auth import router as auth_router
+from app.views.oauth2 import router as auth_router
 from app.views.v1.index import router as v1_router
 
 # initialize logger
@@ -41,6 +42,7 @@ async def startup_event() -> None:
     # loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
     app.config = config
+    app.tmpl = Jinja2Templates(directory='app/templates')
     # redis = aioredis.from_url(config.REDIS_DSN, encoding="utf8", decode_responses=True)
     # FastAPICache.init(RedisBackend(redis), prefix=config.REDIS_PREFIX)
 

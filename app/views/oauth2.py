@@ -7,9 +7,10 @@ from typing import Union, Optional
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from fastapi import APIRouter, Depends, HTTPException, Form, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.security import HTTPBearer
+from starlette.requests import Request
 
 from app.core.exceptions import NotFoundException
 from app.database.schemas import OAuth2AuthorizationCode, OAuth2AuthorizationCodeCreateUpdate, User
@@ -17,7 +18,7 @@ from app.database.schemas.oauth2 import OAuth2TokenCreateUpdate, OAuth2Token
 from app.datasources.oauth2_datasource import OAuth2Datasource, get_oauth2_ds
 from app.repositories.user_repository_impl import UserRepositoryImpl, get_user_repo
 
-router = APIRouter(redirect_slashes=True, prefix='/auth', tags=['auth'])
+router = APIRouter(redirect_slashes=True, prefix='/o', tags=['OAuth2'])
 
 db_table_params = {}
 
@@ -108,36 +109,7 @@ def extract_keys(data=None, keys=None) -> dict | str:
     return result
 
 
-def error_page(msg: str = ''):
-    html_content = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <title></title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta name="description" content="">
-            <meta name="author" content="">
-            <link rel="stylesheet" href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.no-icons.min.css">
-            <link rel="stylesheet" href="/static/css/base.css">
-            <style>
-
-            </style>
-        </head>
-        <body>
-        <div class="container">
-            <div class="block-center">
-                    <h2>Error: invalid_request</h2>
-                    <p>Invalid {msg} parameter value.</p>
-            </div>
-        </div>
-        </body>
-        </html>
-    """
-    return HTMLResponse(content=html_content, status_code=400)
-
-
-def login_page(verify_key=None, suggested_users=None) -> str:
+def login_page(request: Request, verify_key=None, suggested_users=None) -> str:
     if suggested_users is None:
         suggested_users = []
     if verify_key is None:
@@ -148,50 +120,12 @@ def login_page(verify_key=None, suggested_users=None) -> str:
     else:
         user_help = 'Try to use one of emails: ' + ', '.join(suggested_users)
 
-    _loginPage = f"""<!DOCTYPE html>
-    <html lang="en">
-        <head>
-            <title>Bootstrap 5 Example</title>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet">
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/js/bootstrap.bundle.min.js"></script>
-        </head>
-        <body>
-    
-            <div class="container-fluid p-5 bg-primary text-white text-center">
-                <h1>Login Page</h1>
-                <p>Enter your email and password</p> 
-            </div>
-    
-            <div class="container mt-5">
-                <div class="row">
-                    <div class="col">
-                    <form action="./login" method="post">
-                        <div class="mb-3">
-                            <label for="username" class="form-label">Email address</label>
-                            <input type="email" class="form-control" id="username" name="username" aria-describedby="emailHelp" value="user@test.ru">
-                            <div id="emailHelp" class="form-text">{user_help}</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password (can be any)</label>
-                            <input type="password" class="form-control" id="password" name="password" value="1">
-                            <input type="hidden" class="form-control" id="verify_key" name="verify_key" value={verify_key}>
-                        </div>
-                        <button type="submit" class="btn btn-primary" style="position: relative">Login</button>
-                    </form>
-                    </div>
-                </div>
-            </div>
-    
-        </body>
-    </html>
-    """
-    return _loginPage
+    return request.app.tmpl.TemplateResponse('login.html', {'request': request, 'verify_key': verify_key})
 
 
 @router.get('/login')
-async def get_login_page(response_type: Union[str, None] = 'code',
+async def get_login_page(request: Request,
+                         response_type: Union[str, None] = 'code',
                          client_id: Union[str, None] = 'SomeClientID',
                          state: Union[str, None] = 'SomeState',
                          redirect_uri: Union[str, None] = 'redirectURL',
@@ -200,12 +134,12 @@ async def get_login_page(response_type: Union[str, None] = 'code',
 
     application = await oauth2_ds.get_app_by_client_id(client_id)
     if not application:
-        return error_page('client_id')
+        return request.app.tmpl.TemplateResponse('error.html', {'request': request, 'msg': 'client_id'})
 
     if application.authorization_grant_type != 'authorization_code' and response_type != 'code':
-        return error_page('response_type')
+        return request.app.tmpl.TemplateResponse('error.html', {'request': request, 'msg': 'response_type'})
     if redirect_uri != application.redirect_uris:
-        return error_page('redirect_uri')
+        return request.app.tmpl.TemplateResponse('error.html', {'request': request, 'msg': 'redirect_uri'})
 
     stored_params = {
         "response_type": response_type,
@@ -223,11 +157,13 @@ async def get_login_page(response_type: Union[str, None] = 'code',
 
     # return login page
 
-    return HTMLResponse(login_page(verify_key))
+    return login_page(request, verify_key)
 
 
 @router.post('/login')
-async def post_name_and_password(username: str = Form(None), password: str = Form(None), verify_key: str = Form(None),
+async def post_name_and_password(request: Request,
+                                 username: str = Form(None), password: str = Form(None),
+                                 verify_key: str = Form(None),
                                  repo: UserRepositoryImpl = Depends(get_user_repo),
                                  oauth2_ds: OAuth2Datasource = Depends(get_oauth2_ds)):
     # username and password must be checked here, if they match eachother
@@ -241,10 +177,10 @@ async def post_name_and_password(username: str = Form(None), password: str = For
     try:
         user = await repo.get_by_username(username)
     except NotFoundException:
-        return HTMLResponse(login_page(verify_key))
+        return login_page(request, verify_key)
 
     if user.password != password:
-        return HTMLResponse(login_page(verify_key))
+        return login_page(request, verify_key)
 
     # remove stored data from table
     del db_table_params[verify_key]  # remove key from table
@@ -254,6 +190,7 @@ async def post_name_and_password(username: str = Form(None), password: str = For
         code=random_string(),
         client_id=stored_params['client_id'],
         redirect_uri=stored_params['redirect_uri'],
+        user_id=user.id
     )
     # code = random_string()
     a = await oauth2_ds.create_authorization_code(oauth2_codes)
@@ -268,9 +205,6 @@ async def post_name_and_password(username: str = Form(None), password: str = For
               f"&state={stored_params['state']}" \
               f"&client_id={oauth2_codes.client_id}"
     return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
-
-
-# 0.0.0.0:8000/auth/login?state=https%3A%2F%2Fsocial.yandex.ru%2Fbroker2%2Fauthz_in_web%2F143964f694d7466aa63ef6a609c4432d%2Fcallback&redirect_uri=http%3A%2F%2F0.0.0.0%3A8000%2F&response_type=code&client_id=a760ec59a5ca44a6980dcec152b7e5a6
 
 
 @router.post('/token')
@@ -310,6 +244,7 @@ async def exchange_code_for_token(
             refresh_token=token['refresh_token'],
             issued_at=token['date_of_creation'].timestamp(),
             exp=token['expires_in'],
+            user_id=oauth2_code.user_id
         )
         await oauth2_ds.create_token(obj)
 
@@ -346,7 +281,7 @@ async def exchange_code_for_token(
 
         oauth2_token.access_token_revoked_at = int(time.time())
         oauth2_token.refresh_token_revoked_at = int(time.time())
-        obj = await oauth2_ds.update_token(oauth2_token.id, oauth2_token)
+        await oauth2_ds.update_token(oauth2_token.id, oauth2_token)
 
         token = create_token()
         obj = OAuth2TokenCreateUpdate(
@@ -356,6 +291,7 @@ async def exchange_code_for_token(
             refresh_token=token['refresh_token'],
             issued_at=token['date_of_creation'].timestamp(),
             exp=token['expires_in'],
+            user_id=oauth2_token.user_id
         )
         await oauth2_ds.create_token(obj)
 
@@ -382,8 +318,7 @@ async def get_user_info(token=Depends(authorized), user_repo: UserRepositoryImpl
             'error': 'invalid_request',
             'error_description': f'Bad OAuth Flow, token {token} has not been found'
         }, status_code=404)
-    # response_json = extract_keys(token.dict(), ['user'])
-    user = await user_repo.get(1)
+    user = await user_repo.get(token.user_id)
     return user
     # return as_jwt(response_json)
 

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Bootstrap 5 Example</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/js/bootstrap.bundle.min.js"></script>
+    </head>
+    <body>
+
+        <div class="container-fluid p-5 bg-primary text-white text-center">
+            <h1>Login Page</h1>
+            <p>Enter your email and password</p>
+        </div>
+
+        <div class="container mt-5">
+            <div class="row">
+                <div class="col">
+                <form action="./login" method="post">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Email address</label>
+                        <input type="email" class="form-control" id="username" name="username" aria-describedby="emailHelp" value="user@test.ru">
+                        <div id="emailHelp" class="form-text">{{ user_help }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password (can be any)</label>
+                        <input type="password" class="form-control" id="password" name="password" value="1">
+                        <input type="hidden" class="form-control" id="verify_key" name="verify_key" value="{{ verify_key }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="position: relative">Login</button>
+                </form>
+                </div>
+            </div>
+        </div>
+
+    </body>
+</html>
