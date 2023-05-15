@@ -1,0 +1,21 @@
+version: "3.6"
+
+networks:
+  nginx:
+    name: nginx
+    external: true
+
+services:
+  alice:
+    build: ../
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+    ports:
+      - 8001:8000
+    environment:
+        API_VERSION: 0.0.1
+        ENVIRONMENT: production
+    env_file: prod.sec.env
+    networks:
+      - nginx

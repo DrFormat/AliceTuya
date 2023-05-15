@@ -1,0 +1,8 @@
+flake8-fastapi==0.7.0
+flake8==6.0.0
+httpx==0.24.0
+mypy==1.2.0
+pytest-cov==4.0.0
+pytest-dependency==0.5.1
+pytest-ordering==0.6
+pytest==7.3.1
